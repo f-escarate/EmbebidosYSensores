@@ -631,147 +631,6 @@ void check_initialization(void){
     }
 }
 
-
-// --------------------------------- SAMPLE RATE -----------------------------------------------
-/* Registers
-ACC_CONF -> 0x40
-    acc_odr:        bits 0-3
-GYR_CONF -> 0x42
-    gyr_odr:        bits 0-3 
-*/
-
-uint8_t acc_odr(uint8_t conf){
-    //0x00 reserved Reserved
-    //0x01 odr_0p78 25/32
-    //0x02 odr_1p5 25/16
-    //0x03 odr_3p1 25/8
-    //0x04 odr_6p25 25/4
-    //0x05 odr_12p5 25/2
-    //0x06 odr_25 25
-    //0x07 odr_50 50
-    //0x08 odr_100 100      <- default
-    //0x09 odr_200 200
-    //0x0a odr_400 400
-    //0x0b odr_800 800
-    //0x0c odr_1k6 1600
-    //0x0d odr_3k2 Reserved
-    //0x0e odr_6k4 Reserved
-    //0x0f odr_12k8 Reserved
-    if (0x06 <= conf && conf <= 0x0c)
-        return conf;
-    ESP_LOGW("ODR", "Invalid ACC_ODR, using 0x08 instead");
-    return 0x08;
-}
-uint8_t gyr_odr(uint8_t conf){
-    //0x00 reserved Reserved
-    //0x01 odr_0p78 Reserved
-    //0x02 odr_1p5 Reserved
-    //0x03 odr_3p1 Reserved
-    //0x04 odr_6p25 Reserved
-    //0x05 odr_12p5 Reserved
-    //0x06 odr_25 25
-    //0x07 odr_50 50
-    //0x08 odr_100 100
-    //0x09 odr_200 200          <- default
-    //0x0a odr_400 400
-    //0x0b odr_800 800
-    //0x0c odr_1k6 1600
-    //0x0d odr_3k2 3200
-    //0x0e odr_6k4 Reserved
-    //0x0f odr_12k8 Reserved
-    if (0x06 <= conf && conf <= 0x0d)
-        return conf;
-    ESP_LOGW("ODR", "Invalid GYR_ODR, using 0x09 instead");
-    return 0x09;
-}
-
-// --------------------------------- POWER MODES -----------------------------------------------
-
-/* Registers
-PWR_CTRL -> 0x7D
-    acc_en:         bit 2
-    gyr_en:         bit 1
-ACC_CONF -> 0x40
-    filter_perf:    bit 7
-GYR_CONF -> 0x42
-    filter_perf:    bit 7
-    noise_perf:     bit 6
-PWR_CONF -> 0x7C
-    adv_pwr_save:   bit 0
-*/
-
-
-uint8_t* powermodes(uint8_t mode)
-{
-    const char* modes[] = {"Suspend", "Low", "Normal", "Performance"};
-    /*      |    PWR_CTRL   | ACC_CONF |    GYR_CONF   |  PWR_CONF
-            | acc_en gyr_en | f_perf   | f_perf n_perf | adv_pwr_save
-    suspend | 0      0      | 0        | 0      0      | 1
-    low     | 1      1      | 0        | 0      0      | 1
-    normal  | 1      1      | 1        | 1      0      | 0
-    perf    | 1      1      | 1        | 1      1      | 0 
-    */
-                               //     suspend| low |normal|perf
-    const uint8_t pwr_ctrl_values[4] = {0x00,  0x06, 0x06,  0x06}; 
-    const uint8_t acc_conf_values[4] = {0x00,  0x00, 0x80,  0x80}; 
-    const uint8_t gyr_conf_values[4] = {0x00,  0x00, 0x80,  0xC0}; 
-    const uint8_t pwr_conf_values[4] = {0x01,  0x01, 0x00,  0x00}; 
-
-    uint8_t* ret = malloc(4*sizeof(uint8_t));
-    ret[0] = pwr_ctrl_values[mode];
-    ret[1] = acc_conf_values[mode];
-    ret[2] = gyr_conf_values[mode]; 
-    ret[3] = pwr_conf_values[mode];  
-    ESP_LOGI("POWER", "%s power mode: activated. \n\n", modes[mode]);
-    return ret;
-}
-
-// ---------------------------- Sensibility --------------------------------------------------
-
-/*
-ACC_RANGE (0x41) -> 2 bits (4 options)
-GYR_RANGE (0x43) -> 3 bits (5 options)
-*/
-
-uint8_t acc_sensibility(uint8_t option){
-    /* 
-    0x00 range_2g +/-2g
-    0x01 range_4g +/-4g
-    0x02 range_8g +/-8g        <- default
-    0x03 range_16g +/-16g 
-    */
-    if (option <= 0x03)
-        return option;
-    ESP_LOGW("RANGE", "Invalid ACC_RANGE, using 0x02 instead");
-    return 0x02;
-}
-
-uint8_t gyr_sensibility(uint8_t gyr, uint8_t ois){
-    /* 
-    gyr_range -> 3 bits
-    0x00 range_2000 +/-2000dps, 16.4 LSB/dps
-    0x01 range_1000 +/-1000dps, 32.8 LSB/dps
-    0x02 range_500 +/-500dps, 65.6 LSB/dps
-    0x03 range_250 +/-250dps, 131.2 LSB/dps
-    0x04 range_125 +/-125dps, 262.4 LSB/dps
-    ois_range -> 1 bit
-    0x00 range_250 +/-250dps, 131.2 LSB/dps
-    0x01 range_2000 +/-2000dps, 16.4 LSB/dps
-    */
-    uint8_t gyr_range = 0x00;    // default=0x00
-    uint8_t ois_range = 0x00;    // default=0x00
-    if (gyr <= 0x04)
-        gyr_range = gyr;
-    else
-        ESP_LOGW("RANGE", "Invalid GYR_RANGE, using 0x00 instead");
-    if (ois <= 0x01)
-        ois_range = ois;
-    else
-        ESP_LOGW("RANGE", "Invalid OIS_RANGE, using 0x00 instead");
-    return gyr_range | (ois_range<<3);
-}
-
-// -------------------------------------------------------------------------------------------
 void normalpowermode(void)
 {
     //PWR_CTRL: disable auxiliary sensor, gryo acc temp on
@@ -803,19 +662,192 @@ void internal_status(void)
 
 }
 
-void lectura(void)
+// --------------------------------- POWER MODES -----------------------------------------------
+
+/* Registers
+PWR_CTRL -> 0x7D
+    acc_en:         bit 2
+    gyr_en:         bit 1
+ACC_CONF -> 0x40
+    filter_perf:    bit 7
+    acc_odr:        bits 0-3
+GYR_CONF -> 0x42
+    filter_perf:    bit 7
+    noise_perf:     bit 6
+    gyr_odr:        bits 0-3 
+PWR_CONF -> 0x7C
+    adv_pwr_save:   bit 0
+*/
+
+
+void set_pwrmode_and_ODRs(uint8_t mode, uint8_t acc_odr, uint8_t gyr_odr)
+{
+    // Cheking ODRs
+    if (acc_odr < 0x01 || 0x0c < acc_odr){
+        ESP_LOGW("ODR", "Invalid ACC_ODR, using default ODR instead (0x08)");
+        acc_odr = 0x08;
+    }
+    if (gyr_odr < 0x06 || 0x0d < gyr_odr){
+        ESP_LOGW("ODR", "Invalid GYR_ODR, using default ODR instead (0x09)");
+        gyr_odr = 0x09;
+    }
+
+    const char* modes[] = {"Suspend", "Low", "Normal", "Performance"};
+    /*      |    PWR_CTRL   | ACC_CONF |    GYR_CONF   |  PWR_CONF
+            | acc_en gyr_en | f_perf   | f_perf n_perf | adv_pwr_save
+    suspend | 0      0      | 0        | 0      0      | 1
+    low     | 1      1      | 0        | 0      0      | 1
+    normal  | 1      1      | 1        | 1      0      | 0
+    perf    | 1      1      | 1        | 1      1      | 0 
+    */
+                               //     suspend| low |normal|perf
+    const uint8_t pwr_ctrl_values[4] = {0x00,  0x06, 0x06,  0x06}; 
+    const uint8_t acc_conf_values[4] = {0x00,  0x00, 0x80,  0x80}; 
+    const uint8_t gyr_conf_values[4] = {0x00,  0x00, 0x80,  0xC0}; 
+    const uint8_t pwr_conf_values[4] = {0x01,  0x01, 0x00,  0x00}; 
+
+    uint8_t PWR_CTRL = pwr_ctrl_values[mode];
+    uint8_t ACC_CONF = acc_conf_values[mode] | acc_odr;
+    uint8_t GYR_CONF = gyr_conf_values[mode] | gyr_odr; 
+    uint8_t PWR_CONF = pwr_conf_values[mode];  
+
+    uint8_t reg_acc_conf = 0x40;
+    uint8_t reg_gyr_conf = 0x42;
+    uint8_t reg_pwr_conf = 0x7C;
+    uint8_t reg_pwr_ctrl = 0x7D;
+
+    bmi_write(I2C_NUM_0, &reg_acc_conf, &ACC_CONF,1);
+    bmi_write(I2C_NUM_0, &reg_gyr_conf, &GYR_CONF,1);
+    bmi_write(I2C_NUM_0, &reg_pwr_conf, &PWR_CONF,1);
+    bmi_write(I2C_NUM_0, &reg_pwr_ctrl, &PWR_CTRL,1);
+
+    ESP_LOGI("POWER", "%s power mode: activated. \n\n", modes[mode]);
+}
+
+// ---------------------------- Sensibility --------------------------------------------------
+
+/*
+ACC_RANGE (0x41) -> 2 bits (4 options)
+GYR_RANGE (0x43) -> 3 bits (5 options)
+*/
+
+void set_acc_sensibility(uint8_t option){
+    /* 
+    0x00 range_2g +/-2g
+    0x01 range_4g +/-4g
+    0x02 range_8g +/-8g        <- default
+    0x03 range_16g +/-16g 
+    */
+    uint8_t ACC_RANGE;
+    if (option <= 0x03){
+        ACC_RANGE = option;
+    }
+    else{
+        ACC_RANGE = 0x02;
+        ESP_LOGW("RANGE", "Invalid ACC_RANGE, using 0x02 instead");
+    }
+
+    uint8_t reg_acc_rng  = 0x41;
+    bmi_write(I2C_NUM_0, &reg_acc_rng, &ACC_RANGE, 1);
+}
+
+void set_gyr_sensibility(uint8_t gyr, uint8_t ois){
+    /* 
+    gyr_range -> 3 bits
+    0x00 range_2000 +/-2000dps, 16.4 LSB/dps
+    0x01 range_1000 +/-1000dps, 32.8 LSB/dps
+    0x02 range_500 +/-500dps, 65.6 LSB/dps
+    0x03 range_250 +/-250dps, 131.2 LSB/dps
+    0x04 range_125 +/-125dps, 262.4 LSB/dps
+    ois_range -> 1 bit
+    0x00 range_250 +/-250dps, 131.2 LSB/dps
+    0x01 range_2000 +/-2000dps, 16.4 LSB/dps
+    */
+    uint8_t gyr_range = 0x00;    // default=0x00
+    uint8_t ois_range = 0x00;    // default=0x00
+    if (gyr <= 0x04)
+        gyr_range = gyr;
+    else
+        ESP_LOGW("RANGE", "Invalid GYR_RANGE, using 0x00 instead");
+    if (ois <= 0x01)
+        ois_range = ois;
+    else
+        ESP_LOGW("RANGE", "Invalid OIS_RANGE, using 0x00 instead");
+
+    uint8_t reg_gyr_rng  = 0x43;
+    uint8_t GYR_RANGE = gyr_range | (ois_range<<3);
+    bmi_write(I2C_NUM_0, &reg_gyr_rng, &GYR_RANGE,1);   
+}
+
+
+// --------------------------- ANYMOTION --------------------------------------
+
+void set_anymo1(uint16_t time, uint8_t x, uint8_t y ,uint8_t z){
+    uint8_t reg_ANYMO_1 = 0x3C;
+    //duration from bit 0 to 12 from 0 ms to 2400 ms 
+    // default duration time = 0x5 (200 ms)
+    //recives an axis, 0 or 1
+    // bit 13 -> x-axis
+    // bit 14 -> y-axis
+    // bit 15 -> z-axis
+    uint16_t data_2_w = 0; 
+    uint16_t duration = time;
+    uint16_t axis_2_w = x<<13 | y<<14 | z<<15;
+    data_2_w = axis_2_w | duration;
+    bmi_write(I2C_NUM_0, &reg_ANYMO_1, (uint8_t*)(&data_2_w), 2);
+    ESP_LOGI("ANYMO", "set_anymo1 successful! \n");
+}
+
+// Enables Anymotion and set the threshold 
+void set_anymo2(uint16_t thresh){
+    uint8_t reg_ANYMO_2 = 0x3E;
+    //enable register for the anymotion feature
+    uint16_t enable = 0x8000;
+
+    // The threshold is expressed with 11 bits only
+    if(thresh >= (2<<11)){
+        ESP_LOGW("ANYMO", "Invalid threshold, using 0xAA instead");
+        thresh = 0xAA;
+    }
+    uint16_t out_conf = (0x07) << 11;
+    uint16_t to_write = thresh | enable | out_conf;
+    bmi_write(I2C_NUM_0, &reg_ANYMO_2, (uint8_t*)(&to_write), 2);
+}
+
+uint8_t check_anymo(void){
+    uint8_t interrupt_reg = 0x57;
+    uint8_t result[2];
+    ret= bmi_read(I2C_NUM_0, &interrupt_reg, (uint8_t*)result, 2);
+    uint8_t mask = (1 << 6);
+    return ((result[0] | result[1] << 8) & mask) != 0;
+}
+
+// ------------------------------------------------------------------------------
+
+void lectura(uint8_t acc_range, uint8_t gyr_range)
 {
     uint8_t reg_intstatus=0x03, tmp;
     int bytes_data8 = 12;
     uint8_t reg_data = 0x0C, data_data8[bytes_data8];
     uint16_t acc_x, acc_y, acc_z, gyr_x, gyr_y, gyr_z;
+    const float g = 9.80665;
+    const float to_rad = 3.1415/180; 
+    const float acc_ranges[4] = {2.000, 4.000, 8.000, 16.000};
+    const float gyr_ranges[5] = {2000*to_rad, 1000*to_rad, 500*to_rad, 250*to_rad, 125*to_rad};
+    const float ar = acc_ranges[acc_range];
+    const float gr = gyr_ranges[gyr_range];
 
     while (1)
     {
+        /* 
+        Intento anymotion
+        if(check_anymo()==1){
+            ESP_LOGI("CHECK", "ANYMOTION RECOGNITION");
+        } 
+        */
         bmi_read(I2C_NUM_0, &reg_intstatus, &tmp,1);
         // printf("Init_status.0: %x - mask: %x \n", tmp, (tmp & 0b10000000));
         //ESP_LOGI("leturabmi", "acc_data_ready: %x - mask(80): %x \n", tmp, (tmp & 0b10000000));
-        ESP_LOGI("leturabmi", "-------------------------");
         if ((tmp & 0b10000000) == 0x80)
         { 
             ESP_LOGI("leturabmi", "nuevo dato");
@@ -835,11 +867,15 @@ void lectura(void)
             gyr_z = ((uint16_t) data_data8[11] << 8) | (uint16_t) data_data8[10];
 
 
-            printf("acc_x: %f m/s2     acc_y: %f m/s2     acc_z: %f m/s2\n", (int16_t)acc_x*(78.4532/32768), (int16_t)acc_y*(78.4532/32768), (int16_t)acc_z*(78.4532/32768));
-            //printf("acc_x: %f g     acc_y: %f g     acc_z: %f g     gyr_x: %f rad/s     gyr_y: %f rad/s      gyr_z: %f rad/s\n", (int16_t)acc_x*(8.000/32768), (int16_t)acc_y*(8.000/32768), (int16_t)acc_z*(8.000/32768), (int16_t)gyr_x*(34.90659/32768), (int16_t)gyr_y*(34.90659/32768), (int16_t)gyr_z*(34.90659/32768));
-            printf("acc_x: %f g     acc_y: %f g     acc_z: %f g  \n", (int16_t)acc_x*(8.000/32768), (int16_t)acc_y*(8.000/32768), (int16_t)acc_z*(8.000/32768));    
-            printf("gyr_x: %f rad/s     gyr_y: %f rad/s      gyr_z: %f rad/s\n", (int16_t)gyr_x*(34.90659/32768), (int16_t)gyr_y*(34.90659/32768), (int16_t)gyr_z*(34.90659/32768));
+            
+            printf("acc_x: %f m/s2     acc_y: %f m/s2     acc_z: %f m/s2\n",
+             (int16_t)acc_x*(ar*g/32768), (int16_t)acc_y*(ar*g/32768), (int16_t)acc_z*(ar*g/32768));
 
+            printf("acc_x: %f g     acc_y: %f g     acc_z: %f g  \n",
+            (int16_t)acc_x*(ar/32768), (int16_t)acc_y*(ar/32768), (int16_t)acc_z*(ar/32768));   
+
+            printf("gyr_x: %f rad/s     gyr_y: %f rad/s      gyr_z: %f rad/s\n",
+            (int16_t)gyr_x*(gr/32768), (int16_t)gyr_y*(gr/32768), (int16_t)gyr_z*(gr/32768));
 
             
             if(ret != ESP_OK){
