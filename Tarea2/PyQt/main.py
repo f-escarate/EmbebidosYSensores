@@ -1,34 +1,59 @@
-from gui import Ui_Dialog
 from PyQt5 import QtCore, QtGui, QtWidgets
+import pyqtgraph as pg
+from gui import Ui_Dialog
+
 
 class Controller:
-
     def __init__(self, parent):
         self.ui = Ui_Dialog()
         self.parent = parent
+        self.maxSize = 10
+        self.data_arrays = [[],[],[],[]]
+        self.mode = 0
 
     def setupUI(self):
         self.ui.setupUi(self.parent)
         self.ui.BMI270Box.setVisible(False)
-        self.ui.BME688Box.setVisible(False)
+        self.ui.BME688Box.setVisible(False)        
+        self.setupPlots()
+
+        # Showing the QDialog
         self.parent.show()
-        
 
     def setSignals(self):
-        self.ui.selectSensor.currentIndexChanged.connect(self.leerModoOperacion)
-        #self.ui.boton_detener.clicked.connect(self.criticalError)
-        #self.ui.boton_configuracion.clicked.connect(self.leerConfiguracion)
+        self.ui.selectSensor.currentIndexChanged.connect(self.selectMode)
+        self.ui.initConfigButton.clicked.connect(self.initConfig)
+        self.ui.readDataButton.clicked.connect(self.readData)
 
-    def leerConfiguracion(self):
+    def initConfig(self):
         conf = dict()
-        conf['AccSamp'] = self.ui.text_acc_sampling.toPlainText()
-        conf['AccSen'] = self.ui.text_acc_sensibity.toPlainText()
-        print (conf)
-        return conf
+        match self.mode:
+            case 0:
+                popup = QtWidgets.QMessageBox(parent= self.parent)
+                popup.setWindowTitle('Configuración')
+                popup.setText('Selecciona un sensor primero')
+                popup.setIcon(QtWidgets.QMessageBox.Icon.Warning)
+                popup.exec()
+                return
+            case 1:
+                conf['AccSamp'] = self.ui.text_acc_sampling.toPlainText()
+                conf['AccSen'] = self.ui.text_acc_sensibity.toPlainText()
+                conf['GyroSamp'] = self.ui.text_gyro_sampling.toPlainText()
+                conf['GyroSen'] = self.ui.text_gyro_sensibity.toPlainText()
+            case 2:
+                conf['Mode'] = self.ui.selectMode.currentIndex()
 
-    def leerModoOperacion(self):
+
+        popup = QtWidgets.QMessageBox(parent= self.parent)
+        popup.setWindowTitle('Configuración')
+        popup.setText('Configuración enviada a ESP-32')
+        popup.setIcon(QtWidgets.QMessageBox.Icon.Information)
+        popup.exec()
+
+        print (conf)
+
+    def selectMode(self):
         index = self.ui.selectSensor.currentIndex()
-        texto = self.ui.selectSensor.itemText(index)
         match index:
             case 0:
                 self.ui.BMI270Box.setVisible(False)
@@ -37,25 +62,44 @@ class Controller:
                 self.ui.BMI270Box.setVisible(True)
                 self.ui.BME688Box.setVisible(False)
             case 2:
-
                 self.ui.BMI270Box.setVisible(False)
                 self.ui.BME688Box.setVisible(True)
 
+        texto = self.ui.selectSensor.itemText(index)
+        print("Sensor:", texto)
+        self.mode = index
 
-        print(texto)
-        return texto
-
-    def criticalError(self):
-        popup = QtWidgets.QMessageBox(parent= self.parent)
-        popup.setWindowTitle('ERROR MASIVO')
-        popup.setText('QUE HAS APRETADO, NOS HAS CONDENADO A TODOS')
-        popup.setIcon(QtWidgets.QMessageBox.Icon.Critical)
-        popup.exec()
+    def readData(self):
+        self.newData(7,1)
         return
 
     def stop(self):
         print('Mori')
         return
+
+    def setupPlots(self):
+        plots = [self.ui.Plot1, self.ui.Plot2, self.ui.Plot3, self.ui.Plot4]
+        self.pltWdgts = [pg.PlotWidget(), pg.PlotWidget(), pg.PlotWidget(), pg.PlotWidget()]
+
+        for i in range(4):
+            # Getting plot width and heigth
+            plot_rect = plots[i].geometry()
+            width = plot_rect.width()
+            height = plot_rect.height()
+            # Setting the plot size
+            scene = QtWidgets.QGraphicsScene()
+            plots[i].setScene(scene)
+            plots[i].setHorizontalScrollBarPolicy(1)            # Horizontal Scroll Bar off
+            plots[i].setVerticalScrollBarPolicy(1)              # Vertical Scroll Bar off
+            self.pltWdgts[i].setGeometry(0, 0, width, height)   # Setting Plot width and heigth
+            scene.addWidget(self.pltWdgts[i])                   # Adding PlotWidget to scene
+    
+    def newData(self, data, plot_idx):
+        self.data_arrays[plot_idx].append(data)
+        if len(self.data_arrays[plot_idx])>self.maxSize:
+            del self.data_arrays[plot_idx][0]
+        self.pltWdgts[plot_idx].clear()
+        self.pltWdgts[plot_idx].plot(self.data_arrays[plot_idx])
 
 if __name__ == "__main__":
     import sys
@@ -64,4 +108,16 @@ if __name__ == "__main__":
     cont = Controller(parent=Dialog)
     cont.setupUI()
     cont.setSignals()
+
+    cont.newData(1, 0)
+    cont.newData(2, 0)
+    cont.newData(3, 0)
+    cont.newData(4, 0)
+    cont.newData(5, 0)
+    cont.newData(6, 0)
+    cont.newData(7, 0)
+    cont.newData(8, 0)
+    cont.newData(9, 0)
+    
+    
     sys.exit(app.exec_())
