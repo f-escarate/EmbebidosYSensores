@@ -1,6 +1,7 @@
 from PyQt5 import QtCore, QtGui, QtWidgets
 import pyqtgraph as pg
 from gui import Ui_Dialog
+from worker import Worker
 
 
 class Controller:
@@ -19,12 +20,30 @@ class Controller:
 
         # Showing the QDialog
         self.parent.show()
+    
+    def setupPlots(self):
+        plots = [self.ui.Plot1, self.ui.Plot2, self.ui.Plot3, self.ui.Plot4]
+        self.pltWdgts = [pg.PlotWidget(), pg.PlotWidget(), pg.PlotWidget(), pg.PlotWidget()]
+
+        for i in range(4):
+            # Getting plot width and heigth
+            plot_rect = plots[i].geometry()
+            width = plot_rect.width()
+            height = plot_rect.height()
+            # Setting the plot size
+            scene = QtWidgets.QGraphicsScene()
+            plots[i].setScene(scene)
+            plots[i].setHorizontalScrollBarPolicy(1)            # Horizontal Scroll Bar off
+            plots[i].setVerticalScrollBarPolicy(1)              # Vertical Scroll Bar off
+            self.pltWdgts[i].setGeometry(0, 0, width, height)   # Setting Plot width and heigth
+            scene.addWidget(self.pltWdgts[i])                   # Adding PlotWidget to scene
 
     def setSignals(self):
         self.ui.selectSensor.currentIndexChanged.connect(self.selectMode)
         self.ui.initConfigButton.clicked.connect(self.initConfig)
-        self.ui.readDataButton.clicked.connect(self.readData)
+        self.ui.readDataButton.clicked.connect(self.readDataTask)
 
+    # Initialize the configuration depending on the selected sensor
     def initConfig(self):
         conf = dict()
         match self.mode:
@@ -52,6 +71,7 @@ class Controller:
 
         print (conf)
 
+    # Gets the sensor that has been selected
     def selectMode(self):
         index = self.ui.selectSensor.currentIndex()
         match index:
@@ -69,37 +89,43 @@ class Controller:
         print("Sensor:", texto)
         self.mode = index
 
-    def readData(self):
-        self.newData(7,1)
-        return
-
     def stop(self):
         print('Mori')
         return
-
-    def setupPlots(self):
-        plots = [self.ui.Plot1, self.ui.Plot2, self.ui.Plot3, self.ui.Plot4]
-        self.pltWdgts = [pg.PlotWidget(), pg.PlotWidget(), pg.PlotWidget(), pg.PlotWidget()]
-
-        for i in range(4):
-            # Getting plot width and heigth
-            plot_rect = plots[i].geometry()
-            width = plot_rect.width()
-            height = plot_rect.height()
-            # Setting the plot size
-            scene = QtWidgets.QGraphicsScene()
-            plots[i].setScene(scene)
-            plots[i].setHorizontalScrollBarPolicy(1)            # Horizontal Scroll Bar off
-            plots[i].setVerticalScrollBarPolicy(1)              # Vertical Scroll Bar off
-            self.pltWdgts[i].setGeometry(0, 0, width, height)   # Setting Plot width and heigth
-            scene.addWidget(self.pltWdgts[i])                   # Adding PlotWidget to scene
     
+    # Receives the new data and plots it
     def newData(self, data, plot_idx):
         self.data_arrays[plot_idx].append(data)
         if len(self.data_arrays[plot_idx])>self.maxSize:
             del self.data_arrays[plot_idx][0]
         self.pltWdgts[plot_idx].clear()
         self.pltWdgts[plot_idx].plot(self.data_arrays[plot_idx])
+    
+    # Invokes a task in order to read the sensor data
+    def readDataTask(self):
+        # QThread object
+        self.thread = QtCore.QThread()
+        self.worker = Worker()
+        self.worker.moveToThread(self.thread)
+        # Connect signals and slots
+        self.thread.started.connect(self.worker.run)
+        self.worker.finished.connect(self.thread.quit)
+        self.worker.finished.connect(self.worker.deleteLater)
+        self.thread.finished.connect(self.thread.deleteLater)
+        # Plots the data received by the worker
+        self.worker.progress.connect(self.newData)
+        # Start the thread
+        self.thread.start()
+
+        self.ui.readDataButton.clicked.disconnect()
+        self.ui.readDataButton.clicked.connect(self.endRead)
+    
+    # Stops the readData task
+    def endRead(self):
+        self.worker.end()
+        self.ui.readDataButton.clicked.disconnect()
+        self.ui.readDataButton.clicked.connect(self.readDataTask)
+
 
 if __name__ == "__main__":
     import sys
