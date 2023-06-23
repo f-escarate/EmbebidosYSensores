@@ -6,6 +6,9 @@ class Worker(QObject):
     progress = pyqtSignal(int, int)
     running = True
 
+    def __init__(self, parent: QObject | None = ...) -> None:
+        super().__init__(parent)
+
     def run(self):
         """Long-running task."""
         while self.running:
