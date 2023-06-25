@@ -7,10 +7,10 @@ pprinter = pprint.PrettyPrinter()
 
 class SensorReader(QObject):
     finished = pyqtSignal()
-    progress = pyqtSignal(int, int)
+    progress = pyqtSignal(float, float, int)
     running = True
 
-    def __init__(self, path2read, time, baud=115200) -> None:
+    def __init__(self, path2read, time, mode, baud=115200) -> None:
         super().__init__()
         self.path = path2read
         self.baud = baud
@@ -19,17 +19,18 @@ class SensorReader(QObject):
         self.reader.baudrate = baud
         self.data = []
         self.t = time
+        self.mode = mode
     
     def run(self):
         print(f"Reading every {self.t}sec ... use ctrl+c to get all the data")
-        self.reader.open()
+        #self.reader.open()
         try:
             while self.running:
-                str_data = self.reader.readline()
-                str_data = str_data.decode().rstrip()
-                self.data.append(str_data)
-                print(str_data)
-                self.emit(str_data)
+                #str_data = self.reader.readline()
+                #str_data = str_data.decode().rstrip()
+                #self.data.append(str_data)
+                #print(str_data)
+                self.emit("str_data")
                 time.sleep(self.t)
 
         except KeyboardInterrupt:
@@ -42,9 +43,19 @@ class SensorReader(QObject):
         self.running = False
     
     def emit(self, dat):
-        data_id = 0
-        self.progress.emit(dat, data_id)
-            
+        dat = dat.split(', ')
+        #dat = [1, 22.2, 2.3, 1, 43]
+        
+        match self.mode:
+            case 1:
+                self.progress.emit(float(dat[0]), float(dat[1]), 0)
+                self.progress.emit(float(dat[0]), float(dat[2]), 1)
+            case 2:
+                self.progress.emit(float(dat[0]), float(dat[1]), 0)
+                self.progress.emit(float(dat[0]), float(dat[2]), 1)
+                self.progress.emit(float(dat[0]), float(dat[3]), 2)
+                self.progress.emit(float(dat[0]), float(dat[4]), 3)
+                
 
 
 if __name__ == '__main__':
