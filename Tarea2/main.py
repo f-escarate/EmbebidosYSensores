@@ -6,6 +6,9 @@ from Pyserial.sensor_reader import SensorReader
 import serial
 from struct import pack
 
+acc_odrs = ["25/32 Hz", "25/16 Hz", "25/8 Hz", "25/4 Hz", "25/2 Hz", "25 Hz", "50 Hz", "100 Hz",
+             "200 Hz", "400 Hz", "800 Hz", "1600 Hz"] #1 - 12
+gyr_odrs = ["25 Hz", "50 Hz", "100 Hz", "200 Hz", "400 Hz", "800 Hz", "1600 Hz", "3200 Hz"] # 6 - 13
 
 class Controller:
     def __init__(self, parent):
@@ -34,7 +37,7 @@ class Controller:
                 return
             case 1:
                 self.pltWdgts = [RealTimePlot(), RealTimePlot()]
-                y_labels = ["Acc []",  "Gyro []"]
+                y_labels = ["Acc [m/s2]",  "Gyro [rad/s]"]
                 titles = ["Aceleración", "Giro"]
             case 2:
                 self.pltWdgts = [RealTimePlot(), RealTimePlot(), RealTimePlot(), RealTimePlot()]
@@ -47,8 +50,26 @@ class Controller:
 
     def setSignals(self):
         self.ui.selectSensor.currentIndexChanged.connect(self.selectMode)
+        self.ui.selectEnergy.currentIndexChanged.connect(self.refreshSampleRate)
         self.ui.initConfigButton.clicked.connect(self.initConfig)
         self.ui.readDataButton.clicked.connect(self.readDataTask)
+        self.refreshSampleRate()
+    
+    def refreshSampleRate(self):
+        self.ui.selectAccSampRate.clear()
+        self.ui.selectGyrSampRate.clear()
+        match self.ui.selectEnergy.currentIndex():
+            case 0:
+                self.ui.selectAccSampRate.addItems(acc_odrs[:10])
+                self.ui.selectGyrSampRate.addItems(gyr_odrs[:3])
+                self.acc_offset = 1
+                self.gyr_offset = 6
+            case 1 | 2:
+                self.ui.selectAccSampRate.addItems(acc_odrs[4:])
+                self.ui.selectGyrSampRate.addItems(gyr_odrs)
+                self.acc_offset = 5
+                self.gyr_offset = 6
+        
 
     # Initialize the configuration depending on the selected sensor
     def initConfig(self):
@@ -62,11 +83,12 @@ class Controller:
                 popup.exec()
                 return
             case 1:
-                conf['AccSamp'] =  int(self.ui.text_acc_sampling.toPlainText())
-                conf['AccSen'] =   int(self.ui.text_acc_sensibity.toPlainText())
-                conf['GyroSamp'] = int(self.ui.text_gyro_sampling.toPlainText())
-                conf['GyroSen'] =  int(self.ui.text_gyro_sensibity.toPlainText())
-                msg = pack("<BBBBBB", self.mode, 2, conf['AccSamp'], conf['AccSen'], conf['GyroSamp'], conf['GyroSen'])
+                conf['Mode'] =      self.ui.selectEnergy.currentIndex() + 1
+                conf['AccSamp'] =   self.ui.selectAccSampRate.currentIndex() + self.acc_offset
+                conf['AccSen'] =    self.ui.selectAccSens.currentIndex()
+                conf['GyroSamp'] =  self.ui.selectGyrSampRate.currentIndex() + self.gyr_offset
+                conf['GyroSen'] =   self.ui.selectGyrSens.currentIndex()
+                msg = pack("<BBBBBB", self.mode, conf['Mode'], conf['AccSamp'], conf['AccSen'], conf['GyroSamp'], conf['GyroSen'])
 
                 ser = serial.Serial('/dev/ttyUSB0', baudrate=115200) # open serial port
                 ser.write(msg)     # write a string
