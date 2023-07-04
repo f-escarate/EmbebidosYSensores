@@ -2,6 +2,7 @@ import serial as ser
 import pprint
 import time
 from PyQt5.QtCore import QObject, pyqtSignal
+from struct import unpack
 
 pprinter = pprint.PrettyPrinter()
 
@@ -23,14 +24,17 @@ class SensorReader(QObject):
     
     def run(self):
         print(f"Reading every {self.t}sec ... use ctrl+c to get all the data")
-        #self.reader.open()
+        self.reader.open()
+        first_char = b"~"[0]
         try:
             while self.running:
-                #str_data = self.reader.readline()
-                #str_data = str_data.decode().rstrip()
-                #self.data.append(str_data)
-                #print(str_data)
-                self.emit("str_data")
+                str_data = self.reader.readline()
+                if str_data[0] != first_char:
+                    continue
+                str_data = unpack("<cfffffffc", str_data)
+                str_data = str_data[1:len(str_data)-1]
+                self.data.append(str_data)
+                self.emit(str_data)
                 time.sleep(self.t)
 
         except KeyboardInterrupt:
@@ -43,7 +47,6 @@ class SensorReader(QObject):
         self.running = False
     
     def emit(self, dat):
-        dat = dat.split(', ')
         #dat = [1, 22.2, 2.3, 1, 43]
         
         match self.mode:

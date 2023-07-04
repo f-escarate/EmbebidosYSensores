@@ -1,9 +1,10 @@
 from PyQt5 import QtCore, QtWidgets
-import pyqtgraph as pg
 import sys
 from PyQt.gui import Ui_Dialog
 from PyQt.plot import RealTimePlot
 from Pyserial.sensor_reader import SensorReader
+import serial
+from struct import pack
 
 
 class Controller:
@@ -61,10 +62,16 @@ class Controller:
                 popup.exec()
                 return
             case 1:
-                conf['AccSamp'] = self.ui.text_acc_sampling.toPlainText()
-                conf['AccSen'] = self.ui.text_acc_sensibity.toPlainText()
-                conf['GyroSamp'] = self.ui.text_gyro_sampling.toPlainText()
-                conf['GyroSen'] = self.ui.text_gyro_sensibity.toPlainText()
+                conf['AccSamp'] =  int(self.ui.text_acc_sampling.toPlainText())
+                conf['AccSen'] =   int(self.ui.text_acc_sensibity.toPlainText())
+                conf['GyroSamp'] = int(self.ui.text_gyro_sampling.toPlainText())
+                conf['GyroSen'] =  int(self.ui.text_gyro_sensibity.toPlainText())
+                msg = pack("<BBBBBB", self.mode, 2, conf['AccSamp'], conf['AccSen'], conf['GyroSamp'], conf['GyroSen'])
+
+                ser = serial.Serial('/dev/ttyUSB0', baudrate=115200) # open serial port
+                ser.write(msg)     # write a string
+                ser.close()        # close port
+
             case 2:
                 conf['Mode'] = self.ui.selectMode.currentIndex()
 

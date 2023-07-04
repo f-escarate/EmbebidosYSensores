@@ -26,7 +26,7 @@ class RealTimePlot(pg.PlotWidget):
         scene.addWidget(self)                   # Adding PlotWidget to scene
 
     def add_data(self, x, data):
-        print(self.data_array)
+        #print(self.data_array)
         self.data_array[1].append(data)
         self.data_array[0].append(x)
 
