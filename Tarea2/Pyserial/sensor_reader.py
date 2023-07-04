@@ -47,12 +47,16 @@ class SensorReader(QObject):
         self.running = False
     
     def emit(self, dat):
-        #dat = [1, 22.2, 2.3, 1, 43]
+        #dat = [1, 22.2, 2.3, 1, 43, 1, 43]
         
         match self.mode:
             case 1:
                 self.progress.emit(float(dat[0]), float(dat[1]), 0)
                 self.progress.emit(float(dat[0]), float(dat[2]), 1)
+                self.progress.emit(float(dat[0]), float(dat[3]), 2)
+                self.progress.emit(float(dat[0]), float(dat[4]), 3)
+                self.progress.emit(float(dat[0]), float(dat[5]), 4)
+                self.progress.emit(float(dat[0]), float(dat[6]), 5)
             case 2:
                 self.progress.emit(float(dat[0]), float(dat[1]), 0)
                 self.progress.emit(float(dat[0]), float(dat[2]), 1)

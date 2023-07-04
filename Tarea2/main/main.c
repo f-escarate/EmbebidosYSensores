@@ -82,11 +82,11 @@ void send_data(const char *data, size_t length) {
 #include <unistd.h>
 
 void app_main(void) {
-    //ESP_ERROR_CHECK(bmi_init());
-    //softreset();
-    //chipid();
-    //initialization();
-    //check_initialization();
+    ESP_ERROR_CHECK(bmi_init());
+    softreset();
+    chipid();
+    initialization();
+    check_initialization();
 
     change = (uint8_t*) malloc(sizeof(uint8_t));
     *change = 0;

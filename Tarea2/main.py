@@ -36,15 +36,15 @@ class Controller:
                 self.pltWdgts = None
                 return
             case 1:
-                self.pltWdgts = [RealTimePlot(), RealTimePlot()]
-                y_labels = ["Acc [m/s2]",  "Gyro [rad/s]"]
-                titles = ["Aceleración", "Giro"]
+                self.pltWdgts = [RealTimePlot(), RealTimePlot(), RealTimePlot(), RealTimePlot(), RealTimePlot(), RealTimePlot()]
+                y_labels = ["Acc [m/s2]", "Acc [m/s2]", "Acc [m/s2]",  "Gyro [rad/s]", "Gyro [rad/s]", "Gyro [rad/s]"]
+                titles = ["AceleraciónX", "AceleraciónY", "AceleraciónZ", "GiroX", "GiroY", "GiroZ"]
             case 2:
                 self.pltWdgts = [RealTimePlot(), RealTimePlot(), RealTimePlot(), RealTimePlot()]
                 y_labels = ["Temp [C]", "Press [Pa]", "Hum []", "Gas []"]
                 titles = ["Temperatura", "Presión", "Humedad", "Gas"]
         
-        plots = [self.ui.Plot1, self.ui.Plot2, self.ui.Plot3, self.ui.Plot4]
+        plots = [self.ui.Plot1, self.ui.Plot2, self.ui.Plot3, self.ui.Plot4, self.ui.Plot5, self.ui.Plot6]
         for i in range(len(self.pltWdgts)):
             self.pltWdgts[i].set_config(plots[i], y_labels[i], titles[i])
 
