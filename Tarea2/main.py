@@ -96,6 +96,11 @@ class Controller:
 
             case 2:
                 conf['Mode'] = self.ui.selectMode.currentIndex()
+                msg = pack("<BB", self.mode, conf['Mode'])
+
+                ser = serial.Serial('/dev/ttyUSB0', baudrate=115200) # open serial port
+                ser.write(msg)     # write a string
+                ser.close()        # close port
 
 
         popup = QtWidgets.QMessageBox(parent= self.parent)

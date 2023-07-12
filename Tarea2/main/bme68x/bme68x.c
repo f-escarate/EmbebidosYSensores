@@ -1,5 +1,5 @@
 /**
-* Copyright (c) 2023 Bosch Sensortec GmbH. All rights reserved.
+* Copyright (c) 2021 Bosch Sensortec GmbH. All rights reserved.
 *
 * BSD-3-Clause
 *
@@ -31,8 +31,8 @@
 * POSSIBILITY OF SUCH DAMAGE.
 *
 * @file       bme68x.c
-* @date       2023-02-07
-* @version    v4.4.8
+* @date       2021-11-09
+* @version    v4.4.7
 *
 */
 
@@ -145,26 +145,27 @@ int8_t bme68x_init(struct bme68x_dev *dev)
 {
     int8_t rslt;
 
-    (void) bme68x_soft_reset(dev);
-
-    rslt = bme68x_get_regs(BME68X_REG_CHIP_ID, &dev->chip_id, 1, dev);
-
+    rslt = bme68x_soft_reset(dev);
     if (rslt == BME68X_OK)
     {
-        if (dev->chip_id == BME68X_CHIP_ID)
+        rslt = bme68x_get_regs(BME68X_REG_CHIP_ID, &dev->chip_id, 1, dev);
+        if (rslt == BME68X_OK)
         {
-            /* Read Variant ID */
-            rslt = read_variant_id(dev);
-
-            if (rslt == BME68X_OK)
+            if (dev->chip_id == BME68X_CHIP_ID)
             {
-                /* Get the Calibration data */
-                rslt = get_calib_data(dev);
+                /* Read Variant ID */
+                rslt = read_variant_id(dev);
+
+                if (rslt == BME68X_OK)
+                {
+                    /* Get the Calibration data */
+                    rslt = get_calib_data(dev);
+                }
             }
-        }
-        else
-        {
-            rslt = BME68X_E_DEV_NOT_FOUND;
+            else
+            {
+                rslt = BME68X_E_DEV_NOT_FOUND;
+            }
         }
     }
 
@@ -288,11 +289,10 @@ int8_t bme68x_soft_reset(struct bme68x_dev *dev)
         {
             rslt = bme68x_set_regs(&reg_addr, &soft_rst_cmd, 1, dev);
 
+            /* Wait for 5ms */
+            dev->delay_us(BME68X_PERIOD_RESET, dev->intf_ptr);
             if (rslt == BME68X_OK)
             {
-                /* Wait for 5ms */
-                dev->delay_us(BME68X_PERIOD_RESET, dev->intf_ptr);
-
                 /* After reset get the memory page */
                 if (dev->intf == BME68X_SPI_INTF)
                 {
@@ -681,41 +681,39 @@ int8_t bme68x_set_heatr_conf(uint8_t op_mode, const struct bme68x_heatr_conf *co
     return rslt;
 }
 
-/*!
+/*
  * @brief This API is used to get the gas configuration of the sensor.
  */
 int8_t bme68x_get_heatr_conf(const struct bme68x_heatr_conf *conf, struct bme68x_dev *dev)
 {
-    int8_t rslt = BME68X_OK;
+    int8_t rslt;
     uint8_t data_array[10] = { 0 };
     uint8_t i;
 
-    if ((conf != NULL) && (conf->heatr_dur_prof != NULL) && (conf->heatr_temp_prof != NULL))
+    /* FIXME: Add conversion to deg C and ms and add the other parameters */
+    rslt = bme68x_get_regs(BME68X_REG_RES_HEAT0, data_array, 10, dev);
+    if (rslt == BME68X_OK)
     {
-        /* FIXME: Add conversion to deg C and ms and add the other parameters */
-        rslt = bme68x_get_regs(BME68X_REG_RES_HEAT0, data_array, 10, dev);
-
-        if (rslt == BME68X_OK)
+        if (conf && conf->heatr_dur_prof && conf->heatr_temp_prof)
         {
-            for (i = 0; i < conf->profile_len; i++)
+            for (i = 0; i < 10; i++)
             {
                 conf->heatr_temp_prof[i] = data_array[i];
             }
 
             rslt = bme68x_get_regs(BME68X_REG_GAS_WAIT0, data_array, 10, dev);
-
             if (rslt == BME68X_OK)
             {
-                for (i = 0; i < conf->profile_len; i++)
+                for (i = 0; i < 10; i++)
                 {
                     conf->heatr_dur_prof[i] = data_array[i];
                 }
             }
         }
-    }
-    else
-    {
-        rslt = BME68X_E_NULL_PTR;
+        else
+        {
+            rslt = BME68X_E_NULL_PTR;
+        }
     }
 
     return rslt;
@@ -734,21 +732,14 @@ int8_t bme68x_selftest_check(const struct bme68x_dev *dev)
     struct bme68x_conf conf;
     struct bme68x_heatr_conf heatr_conf;
 
-    rslt = null_ptr_check(dev);
-
-    if (rslt == BME68X_OK)
-    {
-        /* Copy required parameters from reference bme68x_dev struct */
-        t_dev.amb_temp = 25;
-        t_dev.read = dev->read;
-        t_dev.write = dev->write;
-        t_dev.intf = dev->intf;
-        t_dev.delay_us = dev->delay_us;
-        t_dev.intf_ptr = dev->intf_ptr;
-
-        rslt = bme68x_init(&t_dev);
-    }
-
+    /* Copy required parameters from reference bme68x_dev struct */
+    t_dev.amb_temp = 25;
+    t_dev.read = dev->read;
+    t_dev.write = dev->write;
+    t_dev.intf = dev->intf;
+    t_dev.delay_us = dev->delay_us;
+    t_dev.intf_ptr = dev->intf_ptr;
+    rslt = bme68x_init(&t_dev);
     if (rslt == BME68X_OK)
     {
         /* Set the temperature, pressure and humidity & filter settings */
@@ -983,7 +974,7 @@ static uint32_t calc_gas_resistance_high(uint16_t gas_res_adc, uint8_t gas_range
     return calc_gas_res;
 }
 
-/* This internal API is used to calculate the heater resistance value using integer */
+/* This internal API is used to calculate the heater resistance value using float */
 static uint8_t calc_res_heat(uint16_t temp, const struct bme68x_dev *dev)
 {
     uint8_t heatr_res;
@@ -1141,7 +1132,7 @@ static float calc_gas_resistance_high(uint16_t gas_res_adc, uint8_t gas_range)
     return calc_gas_res;
 }
 
-/* This internal API is used to calculate the heater resistance value using float */
+/* This internal API is used to calculate the heater resistance value */
 static uint8_t calc_res_heat(uint16_t temp, const struct bme68x_dev *dev)
 {
     float var1;

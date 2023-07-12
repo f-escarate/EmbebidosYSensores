@@ -1,7 +1,7 @@
 #include "esp_log.h"
 #include "BMI270.c"
+#include "bme68x_lib.h"
 #include "freertos/FreeRTOS.h"
-#include "gpio_interrupt.c"
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -12,6 +12,7 @@
 TaskHandle_t myTaskHandle = NULL;
 const uart_port_t uart_num = UART_NUM_0;
 
+// --------------- BMI270 CONFIG -----------------------------------
 // Selecting power mode-> Suspend:0, Low:1, Normal:2, Performance:3
 uint8_t pwr_mode = 2;
 // Setting Sample rate and sensibility config
@@ -20,6 +21,12 @@ uint8_t gyr_odr = 6;    // From 6 to 13 (6 to 8 in low mode)
 uint8_t acc_sens = 2;   // From 0 to 3
 uint8_t gyr_sens = 0;   // From 0 to 4
 uint8_t *change;
+
+// --------------- BME688 CONFIG -----------------------------------
+//uint8_t ope_mode = BME68X_PARALLEL_MODE;
+uint8_t ope_mode = BME68X_FORCED_MODE;
+uint32_t bme_delay;
+
 
 void refresh_config(){
     // Intento de Anymotion
@@ -31,6 +38,47 @@ void refresh_config(){
     set_pwrmode_and_ODRs(pwr_mode, acc_odr, gyr_odr);
     internal_status();
     *change = 0;
+}
+
+void to_forced(bme68x_lib_t* const me){
+    bme68x_lib_set_filter(me, BME68X_FILTER_OFF);   
+    bme68x_lib_set_tph(me, BME68X_OS_2X, BME68X_OS_1X, BME68X_OS_16X);
+    bme68x_lib_set_heater_prof_for(me, 300, 100);
+    bme68x_lib_set_op_mode(me, ope_mode);
+}
+
+void to_parallel(bme68x_lib_t* const me){
+    /* Heater temperature in degree Celsius */
+    uint16_t temp_prof[10] = { 320, 100, 100, 100, 200, 200, 200, 320, 320, 320 };
+    /* Multiplier to the shared heater duration */
+    uint16_t mul_prof[10] = { 5, 2, 10, 30, 5, 5, 5, 5, 5, 5 };
+    uint16_t shared_heatr_dur = (uint16_t)(140 - bme68x_lib_get_meas_dur(me, ope_mode) / 1000);
+
+    bme68x_lib_set_tph(me, BME68X_OS_2X, BME68X_OS_1X, BME68X_OS_16X);
+    bme68x_lib_set_heater_prof_par(me, temp_prof, mul_prof, shared_heatr_dur, 10);
+
+    bme68x_lib_set_heater_prof_for(me, 300, 100);
+    bme68x_lib_set_op_mode(me, ope_mode);
+}
+
+static i2c_t i2c;
+bme68x_lib_t* const setup_BME688(){
+    /* I2C parameters to configure the BME68x device */
+    i2c.i2c_conf.mode = I2C_MODE_MASTER;
+    i2c.i2c_conf.sda_io_num = GPIO_NUM_21;
+    i2c.i2c_conf.scl_io_num = GPIO_NUM_22;
+    i2c.i2c_conf.sda_pullup_en = GPIO_PULLUP_ENABLE;
+    i2c.i2c_conf.scl_pullup_en = GPIO_PULLUP_ENABLE;
+    i2c.i2c_conf.master.clk_speed = 10000;
+    i2c.i2c_addr = BME68X_I2C_ADDR_LOW;
+    i2c.i2c_num = I2C_NUM_0;
+    
+    bme68x_lib_t* const me = malloc(sizeof(bme68x_lib_t));
+    printf("%d\n", bme68x_lib_init(me, &i2c, BME68X_I2C_INTF));
+
+    to_forced(me);
+
+    return me;
 }
 
 void read_serial_task(void *arg){   
@@ -67,6 +115,14 @@ void read_serial_task(void *arg){
                     gyr_odr = data[4];    // From 6 to 13 (6 to 8 in low mode)
                     gyr_sens = data[5];   // From 0 to 4
                 case 2:
+                    if (data[1] == 0){
+                        ope_mode = BME68X_PARALLEL_MODE;
+                        to_parallel(NULL);
+                    } else if (data[1] == 1){
+                        ope_mode = BME68X_FORCED_MODE;
+                        to_forced(NULL);
+                    }
+                    
             }
             refresh_config();
         }
@@ -82,11 +138,23 @@ void send_data(const char *data, size_t length) {
 #include <unistd.h>
 
 void app_main(void) {
-    ESP_ERROR_CHECK(bmi_init());
-    softreset();
-    chipid();
-    initialization();
-    check_initialization();
+    //ESP_ERROR_CHECK(bmi_init());
+    //softreset();
+    //chipid();
+    //initialization();
+    //check_initialization();
+
+    bme68x_lib_t* const me = setup_BME688();
+    if(bme68x_lib_intf_error(me) == 0){
+        while(1){
+            bme_delay = bme68x_lib_get_meas_dur(me, ope_mode);
+            printf("%lu\n", bme_delay);
+            (me->bme6).delay_us(bme_delay, (me->bme6).intf_ptr);
+            bme68x_lib_fetch_data(me);
+            bme68x_data_t* data = bme68x_lib_get_all_data(me);
+            printf("temp %f, press %f, hum %f\n", data->temperature, data->pressure, data->humidity);
+        }
+    }
 
     change = (uint8_t*) malloc(sizeof(uint8_t));
     *change = 0;
